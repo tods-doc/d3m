@@ -18,7 +18,7 @@ import typing
 from xmlrpc import client as xmlrpc  # type: ignore
 
 import frozendict  # type: ignore
-import pycurl  # type: ignore
+#import pycurl  # type: ignore
 
 from d3m import exceptions, namespace, utils
 from d3m.primitive_interfaces import base
@@ -281,154 +281,154 @@ def discover(index: str = 'https://pypi.org/pypi') -> typing.Tuple[str, ...]:
     return tuple(sorted({package['name'] for package in hits}))
 
 
-def download_files(primitive_metadata: frozendict.FrozenOrderedDict, output: str, redownload: bool) -> None:
-    last_progress_call = None
-
-    def curl_progress(download_total: int, downloaded: int, upload_total: int, uploaded: int) -> None:
-        nonlocal last_progress_call
-
-        # Output at most once every 10 seconds.
-        now = time.time()
-        if last_progress_call is None or now - last_progress_call > 10:
-            last_progress_call = now
-
-            print("Downloaded {downloaded}/{download_total} B".format(
-                downloaded=downloaded,
-                download_total=download_total,
-            ), flush=True)
-
-    for installation_entry in primitive_metadata.get('installation', []):
-        if installation_entry['type'] not in ['FILE', 'TGZ']:
-            continue
-
-        # We store into files based on digest. In this way we deduplicate same
-        # files used by multiple primitives.
-        output_path = os.path.join(output, installation_entry['file_digest'])
-
-        if installation_entry['type'] == 'FILE':
-            if os.path.isfile(output_path) and not redownload:
-                print("File for volume {type}/{key} for primitive {python_path} ({primitive_id}) already exists, skipping: {file_uri}".format(
-                    python_path=primitive_metadata['python_path'],
-                    primitive_id=primitive_metadata['id'],
-                    type=installation_entry['type'],
-                    key=installation_entry['key'],
-                    file_uri=installation_entry['file_uri'],
-                ), flush=True)
-                continue
-        elif installation_entry['type'] == 'TGZ':
-            if os.path.isdir(output_path) and not redownload:
-                print("Directory for volume {type}/{key} for primitive {python_path} ({primitive_id}) already exists, skipping: {file_uri}".format(
-                    python_path=primitive_metadata['python_path'],
-                    primitive_id=primitive_metadata['id'],
-                    type=installation_entry['type'],
-                    key=installation_entry['key'],
-                    file_uri=installation_entry['file_uri'],
-                ), flush=True)
-                continue
-
-        # Cleanup.
-        if os.path.isdir(output_path):
-            shutil.rmtree(output_path)
-        elif os.path.exists(output_path):
-            os.remove(output_path)
-
-        print("Downloading file for volume {type}/{key} for primitive {python_path} ({primitive_id}): {file_uri}".format(
-            python_path=primitive_metadata['python_path'],
-            primitive_id=primitive_metadata['id'],
-            type=installation_entry['type'],
-            key=installation_entry['key'],
-            file_uri=installation_entry['file_uri'],
-        ), flush=True)
-
-        output_file_obj: typing.BinaryIO = None
-        output_tar_process = None
-
-        try:
-            if installation_entry['type'] == 'FILE':
-                output_file_obj = open(output_path, 'wb')
-            elif installation_entry['type'] == 'TGZ':
-                os.makedirs(output_path, mode=0o755, exist_ok=True)
-                output_tar_process = subprocess.Popen(['tar', '-xz', '-C', output_path], stdin=subprocess.PIPE)
-                output_file_obj = typing.cast(typing.BinaryIO, output_tar_process.stdin)
-
-            hash = hashlib.sha256()
-            downloaded = 0
-            start = time.time()
-
-            def write(data: bytes) -> None:
-                nonlocal hash
-                nonlocal downloaded
-
-                hash.update(data)
-                downloaded += len(data)
-
-                output_file_obj.write(data)
-
-            while True:
-                try:
-                    with contextlib.closing(pycurl.Curl()) as curl:
-                        curl.setopt(curl.URL, installation_entry['file_uri'])
-                        curl.setopt(curl.WRITEFUNCTION, write)
-                        curl.setopt(curl.NOPROGRESS, False)
-                        curl.setopt(curl.FOLLOWLOCATION, True)
-                        curl.setopt(getattr(curl, 'XFERINFOFUNCTION', curl.PROGRESSFUNCTION), curl_progress)
-                        curl.setopt(curl.LOW_SPEED_LIMIT, 30 * 1024)
-                        curl.setopt(curl.LOW_SPEED_TIME, 30)
-                        curl.setopt(curl.RESUME_FROM, downloaded)
-
-                        curl.perform()
-                        break
-
-                except pycurl.error as error:
-                    if error.args[0] == pycurl.E_OPERATION_TIMEDOUT:
-                        # If timeout, retry/resume.
-                        print("Timeout. Retrying.", flush=True)
-                    else:
-                        raise
-
-            end = time.time()
-
-            print("Downloaded {downloaded} B in {seconds} second(s).".format(
-                downloaded=downloaded,
-                seconds=end - start,
-            ), flush=True)
-
-            if output_tar_process is not None:
-                # Close the input to the process to signal that we are done.
-                output_file_obj.close()
-                output_file_obj = None
-
-                # Wait for 60 seconds to finish writing everything out.
-                if output_tar_process.wait(60) != 0:
-                    raise subprocess.CalledProcessError(output_tar_process.returncode, output_tar_process.args)
-                output_tar_process = None
-
-            if installation_entry['file_digest'] != hash.hexdigest():
-                raise ValueError("Digest for downloaded file does not match one from metadata. Metadata digest: {metadata_digest}. Computed digest: {computed_digest}.".format(
-                    metadata_digest=installation_entry['file_digest'],
-                    computed_digest=hash.hexdigest(),
-                ))
-
-        except Exception:
-            # Cleanup.
-            if output_tar_process is not None:
-                try:
-                    output_tar_process.kill()
-                    output_tar_process.wait()
-                    output_file_obj = None
-                except Exception:
-                    # We ignore errors cleaning up.
-                    pass
-            if os.path.isdir(output_path):
-                shutil.rmtree(output_path)
-            elif os.path.exists(output_path):
-                os.remove(output_path)
-
-            raise
-
-        finally:
-            if output_file_obj is not None:
-                output_file_obj.close()
+#def download_files(primitive_metadata: frozendict.FrozenOrderedDict, output: str, redownload: bool) -> None:
+#    last_progress_call = None
+#
+#    def curl_progress(download_total: int, downloaded: int, upload_total: int, uploaded: int) -> None:
+#        nonlocal last_progress_call
+#
+#        # Output at most once every 10 seconds.
+#        now = time.time()
+#        if last_progress_call is None or now - last_progress_call > 10:
+#            last_progress_call = now
+#
+#            print("Downloaded {downloaded}/{download_total} B".format(
+#                downloaded=downloaded,
+#                download_total=download_total,
+#            ), flush=True)
+#
+#    for installation_entry in primitive_metadata.get('installation', []):
+#        if installation_entry['type'] not in ['FILE', 'TGZ']:
+#            continue
+#
+#        # We store into files based on digest. In this way we deduplicate same
+#        # files used by multiple primitives.
+#        output_path = os.path.join(output, installation_entry['file_digest'])
+#
+#        if installation_entry['type'] == 'FILE':
+#            if os.path.isfile(output_path) and not redownload:
+#                print("File for volume {type}/{key} for primitive {python_path} ({primitive_id}) already exists, skipping: {file_uri}".format(
+#                    python_path=primitive_metadata['python_path'],
+#                    primitive_id=primitive_metadata['id'],
+#                    type=installation_entry['type'],
+#                    key=installation_entry['key'],
+#                    file_uri=installation_entry['file_uri'],
+#                ), flush=True)
+#                continue
+#        elif installation_entry['type'] == 'TGZ':
+#            if os.path.isdir(output_path) and not redownload:
+#                print("Directory for volume {type}/{key} for primitive {python_path} ({primitive_id}) already exists, skipping: {file_uri}".format(
+#                    python_path=primitive_metadata['python_path'],
+#                    primitive_id=primitive_metadata['id'],
+#                    type=installation_entry['type'],
+#                    key=installation_entry['key'],
+#                    file_uri=installation_entry['file_uri'],
+#                ), flush=True)
+#                continue
+#
+#        # Cleanup.
+#        if os.path.isdir(output_path):
+#            shutil.rmtree(output_path)
+#        elif os.path.exists(output_path):
+#            os.remove(output_path)
+#
+#        print("Downloading file for volume {type}/{key} for primitive {python_path} ({primitive_id}): {file_uri}".format(
+#            python_path=primitive_metadata['python_path'],
+#            primitive_id=primitive_metadata['id'],
+#            type=installation_entry['type'],
+#            key=installation_entry['key'],
+#            file_uri=installation_entry['file_uri'],
+#        ), flush=True)
+#
+#        output_file_obj: typing.BinaryIO = None
+#        output_tar_process = None
+#
+#        try:
+#            if installation_entry['type'] == 'FILE':
+#                output_file_obj = open(output_path, 'wb')
+#            elif installation_entry['type'] == 'TGZ':
+#                os.makedirs(output_path, mode=0o755, exist_ok=True)
+#                output_tar_process = subprocess.Popen(['tar', '-xz', '-C', output_path], stdin=subprocess.PIPE)
+#                output_file_obj = typing.cast(typing.BinaryIO, output_tar_process.stdin)
+#
+#            hash = hashlib.sha256()
+#            downloaded = 0
+#            start = time.time()
+#
+#            def write(data: bytes) -> None:
+#                nonlocal hash
+#                nonlocal downloaded
+#
+#                hash.update(data)
+#                downloaded += len(data)
+#
+#                output_file_obj.write(data)
+#
+#            while True:
+#                try:
+#                    with contextlib.closing(pycurl.Curl()) as curl:
+#                        curl.setopt(curl.URL, installation_entry['file_uri'])
+#                        curl.setopt(curl.WRITEFUNCTION, write)
+#                        curl.setopt(curl.NOPROGRESS, False)
+#                        curl.setopt(curl.FOLLOWLOCATION, True)
+#                        curl.setopt(getattr(curl, 'XFERINFOFUNCTION', curl.PROGRESSFUNCTION), curl_progress)
+#                        curl.setopt(curl.LOW_SPEED_LIMIT, 30 * 1024)
+#                        curl.setopt(curl.LOW_SPEED_TIME, 30)
+#                        curl.setopt(curl.RESUME_FROM, downloaded)
+#
+#                        curl.perform()
+#                        break
+#
+#                except pycurl.error as error:
+#                    if error.args[0] == pycurl.E_OPERATION_TIMEDOUT:
+#                        # If timeout, retry/resume.
+#                        print("Timeout. Retrying.", flush=True)
+#                    else:
+#                        raise
+#
+#            end = time.time()
+#
+#            print("Downloaded {downloaded} B in {seconds} second(s).".format(
+#                downloaded=downloaded,
+#                seconds=end - start,
+#            ), flush=True)
+#
+#            if output_tar_process is not None:
+#                # Close the input to the process to signal that we are done.
+#                output_file_obj.close()
+#                output_file_obj = None
+#
+#                # Wait for 60 seconds to finish writing everything out.
+#                if output_tar_process.wait(60) != 0:
+#                    raise subprocess.CalledProcessError(output_tar_process.returncode, output_tar_process.args)
+#                output_tar_process = None
+#
+#            if installation_entry['file_digest'] != hash.hexdigest():
+#                raise ValueError("Digest for downloaded file does not match one from metadata. Metadata digest: {metadata_digest}. Computed digest: {computed_digest}.".format(
+#                    metadata_digest=installation_entry['file_digest'],
+#                    computed_digest=hash.hexdigest(),
+#                ))
+#
+#        except Exception:
+#            # Cleanup.
+#            if output_tar_process is not None:
+#                try:
+#                    output_tar_process.kill()
+#                    output_tar_process.wait()
+#                    output_file_obj = None
+#                except Exception:
+#                    # We ignore errors cleaning up.
+#                    pass
+#            if os.path.isdir(output_path):
+#                shutil.rmtree(output_path)
+#            elif os.path.exists(output_path):
+#                os.remove(output_path)
+#
+#            raise
+#
+#        finally:
+#            if output_file_obj is not None:
+#                output_file_obj.close()
 
 
 # TODO: Add more ways to search for primitives (by name, keywords, etc.).
